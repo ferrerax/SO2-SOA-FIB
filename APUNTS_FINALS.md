@@ -58,7 +58,7 @@ Aquests apunts inclouen tot el temari del QP2020 (el del coronavirus) d'SO2/SOA
  ```
  
  **Handler:** Escrit en assabler. Depèn de l'aquitectura. És el punt bàsic d'entrada al sistema, fa la gestió del hw necessaria i crida a la rutina de la interrupció. Té els seguents passos:
-  - Save All: Guardar els registres necessaris del sistema.  
+  - Save All: Guardar els registres del sistema (tots ells).  
   - EOI: **Només per les interrupcions HW**. Notfica al PIC contoller que s'acabo la interrupt. Es fa aquí per si hi ha un canvi de context en plena interrupció. Seria un problema si no es fes aquí i hi hagués un canvi en mig (veure canvi de context més avall).
   - Crida a la rutina.
   - Restore All: Es restaura els registres que s'han guardat amb el _save all_
@@ -129,7 +129,13 @@ fin:
  
  **Canvis en el wapper:** Com que no fem cap crida a `int`, coses que feia el HW les haurem de fer a manija. Haurem de fer el `save_all` i el `restore_all` i passar correctament els valors al eip, al esp, etc.
  
+## 3. Espai de direccions d'un procés
+### 3.1 Generació d'executables
+ - **Fase 1:**
+   - **Compilació:** D'alt nivell a codi objecte
+   - **Montatge:** Creació d'executables a partir de codi objecte i llibreries. La diferència entre l'obkecte i l'executable són les adreces. Les del objecte són relatives a l'inici de l'objecte. L'executable te unes capçaleres amb els segments definits.
+ - **Fase 2:**
+    - **Carregador:** Carrega l'executable en memòria allà on cal.
  
- 
- 
- 
+### 3.2 Espais d'adreces
+

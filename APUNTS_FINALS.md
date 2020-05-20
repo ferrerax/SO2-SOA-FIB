@@ -138,4 +138,19 @@ fin:
     - **Carregador:** Carrega l'executable en memòria allà on cal.
  
 ### 3.2 Espais d'adreces
+**Espai de direccions lògic del processador:** Rang de direccions a les que pot accedir un processador. Depèn del bus.
+**Espai de direccions lògic del procés:** Espai d'un procés en execució. Són les adreces que usa el processador.
+**Espai de direccions físic del procés:** Espai d'adreces de memòria física associades a les adreces lògiques del procés.
 
+_Cal doncs una traducció_ -> **MMU** Memory Management Unit. Unitat de HW per fer la traducció.
+
+### 3.3 MMU (Memory Management Unit)
+
+Unitat encarregada de la traducció d'adreces.
+```
+CPU -> unitat de segmentació -> unitat de paginació -> memòria física
+  @lògica                 @lineal                 @física
+       \___________________________________________/
+                             MMU
+
+ - **Unitat de segmentació:**

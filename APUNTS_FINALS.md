@@ -165,5 +165,58 @@ CPU -> unitat de segmentació -> unitat de paginació -> memòria física
       **TLB:** Translation Lookaside Buffer. Ens permet tenir una caché de les adreces traduides. Per invalidar-la n'hi ha prou amb canviar el valor del registre ```cr3```.
      
 ## 4. Gestió de processos.
-     
+**procés:** Executable carregat en memòria i en execució. Caracteritzat per:
  
+  - L'execució d'una seqüència d'instruccions
+  - Un estat actual (registres).
+  - Conjunt associat de recursos (disc, pantalla, memòria)
+
+### 4.1 Estructures de dades
+**PCB:** Process control block. Estructura del sistema que guarda el context d'execució. Entre d'altres conté:
+ 
+ - Identificador del procés (PID).
+ - Estat del procés
+ - Recursos del procés (pàgines de memòria, fitxers oberts...)
+ - Estadístiques del procés. (les stats de zeos)
+ - Informació pel planificador, com el quantum o la prioritat.
+ - Context d'execució.
+ - Altres que no es mencionen en aquesta assignatura
+     Exemple zeos, la realitat és molt més complexa:
+     ```C
+     struct task_struct {     //PCB
+       int PID;			/* Process ID. This MUST be the first field of the struct. */
+	      page_table_entry * dir_pages_baseAddr;
+	      struct list_head list;
+	      unsigned long *kernel_esp;
+	      unsigned long quantum; //per la planificacio dels processos
+	      struct stats estat;
+	      int nice; // 0 => prioritat ; 1 => no pL_HEAP_STARTrioritat
+	      void *brk; //per la gestio de la mem dinamiq
+     };
+    ```
+ 
+ 
+**Pila de sistema:** Cal una pila de sistema per a cada procés. El cap esp0 de la TSS apunta a la base d'aquetsa pila.
+
+**EL PCB i la pila es guarden en una Union anomenada `task_union`**
+
+**Task Union:** Union del PCB + la pila del sistema. Es fa amb un union!! No s'usa struct simplificar les qüestions d'adreces. D'aquesta manera sabem que el top de la pila és el principi del PCB.
+  ```C
+  union task_union {
+      struct task_struct task;
+      unsigned long stack[KERNEL_STACK_SIZE];    /* pila de sistema, per procés */
+  };
+  ```
+  **Les `task_union` s'agrupen en un vector. En linux normal està en memòria dinàmica. En zeos té 10 posicions i s'anmena `task`**
+
+_Com s'organitzen els PCBs?_
+
+Els PCBs s'agrupen en llistes doblement encadenades. En zeos la llista és el camp `list` del PCB:
+
+ - **Ready:** Conté els processos que esperen a que el planificador els dongui pas a la cpu  .
+ - **Free:** Conté aquells PCBs lliures preparats per quan un nou procés els necessiti.
+ - **Run:** Procés/os en execució. En zeos no existeix. Estar _run_ és igual a no tenir 
+
+### Operacions: 
+
+  

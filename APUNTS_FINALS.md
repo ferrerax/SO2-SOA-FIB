@@ -581,8 +581,29 @@ void schedule (void)
 
 ##### 4.2.5.1 Polítiques de planificació de processos
 
+ **No apropiatives:** El sistema usa la CPU fins que es bloqueja
+ **Apropiatives:** EL planificadort pot expulsar un procés de la CPU.
+ 	- Diferides: Al cap d'un temps es fa la planificació
+	- Immediates: Es fa sempre que hi ha un canvi.
  
+ Per a dur a terme aquestes polítiques, s'usen cues. Cada cua pot tenir una política diferent.
  
 
+##### 4.2.5.2 Algoritmes de planificació
 
+**FCFS:** First come, first served. No apropiatiu. Algoritme de _tonto el último_. 
+**Prioritats:** cada procés té assignada una prioritat. Entre processos de igual prioritat és fifo. Pot provocar inanció. 
+**Round Robin:** A _pito-pito_. Es canvia cada cop que a un procés se li acaba el quantum. Es poden aplicar priotitats. Cal pensar que podem tenir moltes cues amb algoritmes diferents i polítiques diferents.
 
+Els algoritmes ens han de garantir:
+ 
+ - Justícia: Tots els processos han de mamar de la CPU
+ - Eficiència: La CPU ha d'anar A Puto Gas, no la podem tenir fent el vago.
+ - Productivitat: Cal maximitzar el nombre de treball per unitat de temps.
+ - Temps d'espera: Cal minimtzar-lo.
+ - Temps de resposta: cal minimitzar el temps que triga un procés en obtenir el seu primer resultat.
+ - Temps de retorn: minimitzar el temps que triga en executar-se _un procés_.
+ 
+ -> Les diferents prioritats d'implementen tenint diferents cues de `ready`.
+
+#### 4.2.6 Fluxes

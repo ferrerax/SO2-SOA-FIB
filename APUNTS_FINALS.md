@@ -625,4 +625,31 @@ _Què guanyem usant fluxes en ves de processos?_
 
  - Perdem overhead de gestió: creació destrucció i canvi de context ens els evitem.
  - Aprofitem recursos
- - COm que compartim dades la comunicació entre threads és més senzilla -> OJU! problemes de condició de carrera que respoldrem més tard.
+ - Com que compartim dades la comunicació entre threads és més senzilla -> OJU! problemes de condició de carrera que respoldrem més tard.
+ - Ens permet explotar el paral·lelisme i la concurrència.
+ - Millorem la modulaitat de les aplicacions perquè podem encapsular les feines.
+ - Podem crear fluxes destinats a E/S per fer-ho de forma asíncrona.
+ - Podem atendre a varies peticions en un servidor.
+ 
+ _Com és el cas específic de Linux?_
+ 
+ **Linux usa la crida a sistema `int clone()` per generar threads**.
+  
+  - Linux no fa distinció entre threads i processos a l'hora de planificar. Tot són tasques que poden compartir o no els recursos amb altres tasques. En un thread, el `task_struct` conté punters enlloc de dades.
+ 
+ **`int clone ( int (*fn) (void *), void *child_stack, int flags, void *arg )`:** Retorna el PID del _procés_ creat (recordar que hem dit que el planificador no distingeix entre processos i threads). Reb com a paràmetre el punter a una funció, una zona de memòria per usar com a pila, les flags i el argument de la funció.
+ 
+ POSIX ens proporciona una interfície per la gestió dels threads -> la llibreria `pthreads`. Permet:
+ 
+  - Creació de threads amb `pthread_create`.
+  - Identificació del thread amb `pthread_self()`.
+  - Finalització del thread amb `pthread_exit`.
+  - Sicronització de final de flux amb `pthread_join`. 
+
+#### 4.2.7 Sincronització entre processos.
+Cal evitar condicions de carrera entre recursos compartits entre els processos concurrents -> Gestió de regions crítiques.
+
+**Solució:** Exclusió mutua en les regions crítiques on es poden haver condicions de carrera.
+
+
+

@@ -13,9 +13,13 @@ Aquests apunts inclouen tot el temari del QP2020 (el del coronavirus) d'SO2/SOA
  
 ### 1.1 Boot
  power -> bios -> bootloader -> OS
+ 
  **Power:** Reset de tots els dispositius i carrega de la BIOS que està harcodejada a la placa. Cal carregar-la en memòria.
+ 
  **BIOS:** Basic Input Output System. Detecta i inicia els dispositius hw. Des d'un dispositiu bootable que s'escull, carrega la partició marcada amb el flag de boot. Aquesta té 512 bytes i conté el bootloader.
+ 
  **Bootloader:** Carrega la imatge del kernel a memòria. Per això l'ha de trobar. Un cop carregat l'executa
+ 
  **OS kernel:** Inicia el SO. Estructures internes, hw necessari etc.
  
  ## 2. Mecanismes d'entrada al sistema
@@ -606,4 +610,19 @@ Els algoritmes ens han de garantir:
  
  -> Les diferents prioritats d'implementen tenint diferents cues de `ready`.
 
-#### 4.2.6 Fluxes
+#### 4.2.6 Fluxes (threads)
+Múltiples processos executant el mateix codi amb dades compartides -> Generem paral·lelisme
+
+**Concurrencia:** Quan un processador és compartit en el temps per varis fluxes. Es genera paral·lelisme quan hi ha fluxes executant-se en paral·lel.
+
+ - Els processos mai compartiran la pila.
+
+**Processos Multifluxe:** Permetre diferents seqüències d'execució simultànies d'un mateix procés.
+
+**Fluxe:** Cada una d'aquestes seqüències. És la unitat mínima de treball de la CPU. Cada fluxe d'un procés comparteix tots els recursos i totes les característiques. Cada fluxe està associat (és a dir, cada thread té únic) a **una pila, un program counter i un banc de registres**.La resta de recursos és compratit entre els fluxes.
+
+_Què guanyem usant fluxes en ves de processos?_
+
+ - Perdem overhead de gestió: creació destrucció i canvi de context ens els evitem.
+ - Aprofitem recursos
+ - COm que compartim dades la comunicació entre threads és més senzilla -> OJU! problemes de condició de carrera que respoldrem més tard.

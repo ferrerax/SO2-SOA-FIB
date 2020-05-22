@@ -249,16 +249,16 @@ Es guarda el context en la pila de sistema i al PCB es guarda la posició de la 
  - Espai de direccions del mode usuari: tenim la info necessaria al PCB.
  - Espai de direccions del kernel: Pila. Perquè la TSS és única i la la pila la podrem calcular de tornada amb l'adreça del PCB.
  
- **Restaurar un procés**
+**Restaurar un procés**
   - TSS: Ha d'apuntar a la base de la pila del nou procés
   - Context HW: Cambiar l'`esp` perquè apunti al context del procés i restaurar-lo.
   - Execució: Carregar al PC la direcció del noy codi a executar.
  
- _Com ho implementem?_ -> `task_switch`
+_Com ho implementem?_ -> `task_switch`
  
- Ens caldran dues funcions:
+Ens caldran dues funcions:
  
- **`task_switch`:** Aquesta funció és un wrapper que guarda i restaura els registres `esi`, `edi` i `ebx` perquè els perdríem. A més, ens cal aquesta funció perquè cal guardar una adreça de retorn controlada a la pila.
+**`task_switch`:** Aquesta funció és un wrapper que guarda i restaura els registres `esi`, `edi` i `ebx` perquè els perdríem. A més, ens cal aquesta funció perquè cal guardar una adreça de retorn controlada a la pila.
  
 ```
 ENTRY(task_switch)
@@ -276,13 +276,13 @@ ENTRY(task_switch)
 	popl %ebp
 	ret
 ```
-  
-  **`inner_task_switch`:** Fa el switch en si. Té un funcionament complexe:
-  	1. Carreguem el camp `esp0` de la TSS perquè apunti a la base de la pila de sistema.
-	2. Cal canviar l'MSR per mantenir al coherència amb `sysenter`.
-	3. Canviem el registre `cr3` perquè apunti a la base del directori.
-	4. Guardem `ebp` al PCB. Cal tenir en compte que `ebp` ens apunta a la pila del nostre sistema del procés actual (és l'enllaç dinàmic)! A més cal tenir en compte que en aquest moment `esp` = `ebp`
-	5. Obtenim l'antic `ebp` del PCB del procés que volem restaurar i el carreguem al registre `esp`. D'aquesta manera tindrem el registre `esp` apuntant just al camp `ebp` de la pila. És a dir, a l'anic enllaç dinàmic que s'havia guardat. De manera que al fer `pop ebp` i `ret` haurem tornat al `task_switch` tal i com s'havia deixat abans. Canvi fet.
+
+**`inner_task_switch`:** Fa el switch en si. Té un funcionament complexe:  	
+1. Carreguem el camp `esp0` de la TSS perquè apunti a la base de la pila de sistema.
+2. Cal canviar l'MSR per mantenir al coherència amb `sysenter`.
+3. Canviem el registre `cr3` perquè apunti a la base del directori.	
+4. Guardem `ebp` al PCB. Cal tenir en compte que `ebp` ens apunta a la pila del nostre sistema del procés actual (és l'enllaç dinàmic)! A més cal tenir en compte que en aquest moment `esp` = `ebp`
+5. Obtenim l'antic `ebp` del PCB del procés que volem restaurar i el carreguem al registre `esp`. D'aquesta manera tindrem el registre `esp` apuntant just al camp `ebp` de la pila. És a dir, a l'anic enllaç dinàmic que s'havia guardat. De manera que al fer `pop ebp` i `ret` haurem tornat al `task_switch` tal i com s'havia deixat abans. Canvi fet.
 	
 ```C
 void inner_task_switch(union task_union*t){   //Punter a la task union del nou procés
@@ -301,7 +301,126 @@ void inner_task_switch(union task_union*t){   //Punter a la task union del nou p
 
 ```
 #### 4.2.3 Creació de processos
+És pot fer per mitja de duplicar el procés (copiar codi i dades) per mitjà de la crida `fork` o duplicar el fluxe (compartint l'espai de direccions amb el pare, threads en OpenMP) per mitjà de la crida `clone`. Aquí es tractarà només el `fork`. La creació de threads es tracta en un apartat posterior. 
+`int fork()`: Crida a sistema que ens permet generat un procés. La seva implementació es descriu a continuació:
+0. Estat inicial: Tenim un procés amb codi i dades d'usuari.
 1. Obtenir PCB lliure: A la cua de `free`.
-2. Inicialitzar PCB
-	2.1 Assignar un PID
-	2.2 Heredar del pare.
+2. Inicialitzar PCB: Bàsicament copiar el del pare al fill.
+3. Inicialitzar l'espai d'adreces: Carregar un executable (no fet a zeos) o heredar del pare dades i codi:
+	
+	3.1 Cerquem pàgines físiques lliures.
+	
+	3.2 Mapejem al nou procés el codi de sistema i el d'usuari. Aquest serà compartit.
+	
+	3.4 Mapegem les adreces físiques que hem obtingut al punt 3.1 a l'espai d'adreces lògic del procés nou.
+	
+	3.5 Ampliem l'espai d'adreces del pare amb aquestes noves pàgines físiques del fill i copiem totes les dades juntament amb la pila del pare a aquestes noves pàgines.
+	
+	3.6 Desmapejem aquestes adreces de l'espai d'adreces del pare i fem _flush_ de la TLB. (Tocant el valor del registre `cr3`)
+
+4. Actualitzar el `task_union` del fill amb els nous valors pel PCB assignant un nou PCB.
+5. Peparem la pila del fill per al task_switch (com si se n'hagués fet un perquè així sigui restaurable). L'adressa de retorn del fill serà una funció anomenada `return_from_fork` que farà que a la que el procés nou agafi el control, la crida a `fork()` feta retornarà 0.
+6 Insertar el procés nou a la llista READY
+7 Retornar el pid del nou procés creat. 
+
+```C
+int sys_fork()
+{
+  int PID=-1;
+
+  // a) creates the child process
+	if(list_empty( &freequeue )) return -EAGAIN;
+ 	struct list_head * free_head = list_first( &freequeue );
+	list_del(free_head);
+	struct task_struct * child_task = list_head_to_task_struct(free_head); 
+	
+	// b) copiem pcb del pare al fill
+	copy_data(current(), child_task, sizeof(union task_union));
+
+	// c) inicialitzem el directori
+	allocate_DIR(child_task);
+
+	// d) cerquem pagines fisiques per mapejar amb les logiques
+	int brk = (int) current()->brk;
+	int NUM_PAG_DATA_HEAP = NUM_PAG_DATA + (brk & 0x0fff)? PAG_HEAP(brk) : PAG_HEAP(brk) - 1; 
+	int frames[NUM_PAG_DATA_HEAP];   //cal afegir les pags del heap
+	int i;
+	for (i=0; i<NUM_PAG_DATA_HEAP; i++) 
+	{
+		frames[i] = alloc_frame();
+		if(frames[i] < 0) 
+		{ 																								 // En cas d'error:
+			for(int j = 0; j < i; j++) free_frame(frames[j]); // alliberem els frames reservats
+			list_add(&child_task->list, &freequeue);				 // tornem a encuar la tasca al freequeue 			
+			return -ENOMEM;
+		}
+
+	}
+	// e) heredem les dades del pare
+	page_table_entry *parent_PT = get_PT(current());
+	page_table_entry *child_PT = get_PT(child_task);
+
+	//  > i) creacio de l'espai d'adresses del process fill: 
+	
+
+	// 	>> A) compartim codi de sistema i usuari
+	for(i=1; i < NUM_PAG_KERNEL; i++)  // suposem que el codi de sistema esta mapejat a les primeres posicions de la taula de pagines
+	{
+		child_PT[1+i].entry = parent_PT[1+i].entry;
+	}
+
+	for(i=0; i < NUM_PAG_CODE; i++) 
+	{
+		set_ss_pag(child_PT, i+PAG_LOG_INIT_CODE, get_frame(parent_PT, i+PAG_LOG_INIT_CODE));
+
+	}
+	
+	// 	>> B) assignem les noves pagines fisiques a les adresses logiques del proces fill 
+	for(i=0; i < NUM_PAG_DATA_HEAP; i++) 
+	{
+		set_ss_pag(child_PT, i+PAG_LOG_INIT_DATA, frames[i]);
+
+	}
+
+	// > ii) ampliem lespai d'adresses del pare per poder accedir a les pagines del fill per copiar data+stack
+	for(i=0; i < NUM_PAG_DATA_HEAP; i++) 
+	{
+		unsigned int page = i+PAG_LOG_INIT_DATA;
+		set_ss_pag(parent_PT, page+NUM_PAG_DATA_HEAP, frames[i]);
+		copy_data( (unsigned long *)(page*PAGE_SIZE), (unsigned long *)((page+NUM_PAG_DATA_HEAP)*PAGE_SIZE) , PAGE_SIZE);
+		del_ss_pag(parent_PT, page+NUM_PAG_DATA_HEAP);
+		
+
+	}
+	set_cr3(get_DIR(current())); // flush de la TLB	
+
+
+	// f) assignem nou PID
+	PID = nextPID++;
+	child_task->PID = PID;
+	
+	// g) modifiquem els camps que han de canviar en el proces fill
+	init_stat(child_task);
+
+
+	// h) preparem la pila del fill per al task_switch
+	union task_union * child_union = (union task_union *) child_task;
+	
+	((unsigned long *)KERNEL_ESP(child_union))[-0x13] = (unsigned long) 0;
+	((unsigned long *)KERNEL_ESP(child_union))[-0x12] = (unsigned long) ret_from_fork; // 5 registres + SAVE_ALL (11 regs) + @handler -> top de stack a -0x11
+	child_task->kernel_esp = 	&((unsigned long *)KERNEL_ESP(child_union))[-0x13]; 
+
+	// i) empilem a la readyqueue el fill
+	if (child_task->nice)list_add_tail(&child_task->list, &readyqueue);
+	else list_add_tail(&child_task->list, &priorityqueue);
+
+	// j) retornem el PID del fill
+
+
+	return PID;
+}
+```
+
+
+
+//recordar parlar d'init i idle quan parli del planificador.

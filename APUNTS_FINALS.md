@@ -200,7 +200,7 @@ CPU -> unitat de segmentació -> unitat de paginació -> memòria física
 
 **EL PCB i la pila es guarden en una Union anomenada `task_union`**
 
-**Task Union:** Union del PCB + la pila del sistema. Es fa amb un union!! No s'usa struct simplificar les qüestions d'adreces. D'aquesta manera sabem que el top de la pila és el principi del PCB.
+**Task Union:** Union del PCB + la pila del sistema. Es fa amb un union!! No s'usa struct simplificar les qüestions d'adreces (permet l'ús de la crida current(). Veure punt 4.2.1). D'aquesta manera sabem que el top de la pila és el principi del PCB.
   ```C
   union task_union {
       struct task_struct task;
@@ -217,6 +217,91 @@ Els PCBs s'agrupen en llistes doblement encadenades. En zeos la llista és el ca
  - **Free:** Conté aquells PCBs lliures preparats per quan un nou procés els necessiti.
  - **Run:** Procés/os en execució. En zeos no existeix. Estar _run_ és igual a no tenir 
 
-### Operacions: 
+### 4.2 Operacions
+Operacions que es poden fer ambn els processos
 
+#### 4.2.1 Identificació
+
+**`int getpid`:** Crida a sistema que ens retorna l'identificador del procés. 
+
+_Com se sap quin procés s'està executant?_
+ - Windows: Hi ha una cua de RUN que ens indica quin procés s'executa per cada processador.
+ - Linux: Es calcula amb el punter a la pila. Les `task_union` estan alineades a pàgina (els útlims 8 bits estan a 0). Per tant només cal fer una màscara amb l'`esp` de la pila de sistema:
+ 
+ ```C
+ 	int sys_getpid()
+	{
+	return current()->PID;  //La crida a current fa aquesta mascara mencionada.
+	}
+  ```
+
+#### 4.2.2 Canvi de context
+Es basa en guardar el context d'un procés per poder-lo executar més tard i passar a executar-ne un d'altre.
+
+Es guarda el context en la pila de sistema i al PCB es guarda la posició de la pila que permet recuperar aquest context.
+
+**Cal guardar:**
+ 
+ - Context HW (registres necessaris): Els recursos HW són compartits. 
+ 
+**No cal guardar:**
+ 
+ - Espai de direccions del mode usuari: tenim la info necessaria al PCB.
+ - Espai de direccions del kernel: Pila. Perquè la TSS és única i la la pila la podrem calcular de tornada amb l'adreça del PCB.
+ 
+ **Restaurar un procés**
+  - TSS: Ha d'apuntar a la base de la pila del nou procés
+  - Context HW: Cambiar l'`esp` perquè apunti al context del procés i restaurar-lo.
+  - Execució: Carregar al PC la direcció del noy codi a executar.
+ 
+ _Com ho implementem?_ -> `task_switch`
+ 
+ Ens caldran dues funcions:
+ 
+ **`task_switch`:** Aquesta funció és un wrapper que guarda i restaura els registres `esi`, `edi` i `ebx` perquè els perdríem. A més, ens cal aquesta funció perquè cal guardar una adreça de retorn controlada a la pila.
+ 
+```
+ENTRY(task_switch)
+	pushl %ebp
+	movl %esp, %ebp
+	pushl %esi
+	pushl %edi
+	pushl %ebx
+	pushl 8(%ebp)
+	call inner_task_switch
+	addl $4, %esp
+	popl %ebx
+	popl %edi
+	popl %esi
+	popl %ebp
+	ret
+```
   
+  **`inner_task_switch`:** Fa el switch en si. Té un funcionament complexe:
+  	1. Carreguem el camp `esp0` de la TSS perquè apunti a la base de la pila de sistema.
+	2. Cal canviar l'MSR per mantenir al coherència amb `sysenter`.
+	3. Canviem el registre `cr3` perquè apunti a la base del directori.
+	4. Guardem `ebp` al PCB. Cal tenir en compte que `ebp` ens apunta a la pila del nostre sistema del procés actual (és l'enllaç dinàmic)! A més cal tenir en compte que en aquest moment `esp` = `ebp`
+	5. Obtenim l'antic `ebp` del PCB del procés que volem restaurar i el carreguem al registre `esp`. D'aquesta manera tindrem el registre `esp` apuntant just al camp `ebp` de la pila. És a dir, a l'anic enllaç dinàmic que s'havia guardat. De manera que al fer `pop ebp` i `ret` haurem tornat al `task_switch` tal i com s'havia deixat abans. Canvi fet.
+	
+```C
+void inner_task_switch(union task_union*t){   //Punter a la task union del nou procés
+	tss.esp0 =  KERNEL_ESP(t);   //#define KERNEL_ESP(t)  (DWord)  &(t)->stack[KERNEL_STACK_SIZE]
+	writeMsr(0x175, (int) KERNEL_ESP(t));
+	
+	if(current() -> dir_pages_baseAddr == t-> task.dir_pages_baseAddr)
+		set_cr3(t -> task.dir_pages_baseAddr);
+
+	current() -> kernel_esp = (unsigned long *) getEbp(); 
+
+	setEsp(t -> task.kernel_esp);
+
+	return;          
+}  
+
+```
+#### 4.2.3 Creació de processos
+1. Obtenir PCB lliure: A la cua de `free`.
+2. Inicialitzar PCB
+	2.1 Assignar un PID
+	2.2 Heredar del pare.

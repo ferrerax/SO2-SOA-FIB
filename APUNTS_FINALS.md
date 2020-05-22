@@ -407,7 +407,101 @@ int sys_fork()
 	union task_union * child_union = (union task_union *) child_task;
 	
 	((unsigned long *)KERNEL_ESP(child_union))[-0x13] = (unsigned long) 0;
+	((unsigned long *)KERNEL_ESint sys_fork()
+{
+  int PID=-1;
+
+  // a) creates the child process
+	if(list_empty( &freequeue )) return -EAGAIN;
+ 	struct list_head * free_head = list_first( &freequeue );
+	list_del(free_head);
+	struct task_struct * child_task = list_head_to_task_struct(free_head); 
+	
+	// b) copiem pcb del pare al fill
+	copy_data(current(), child_task, sizeof(union task_union));
+
+	// c) inicialitzem el directori
+	allocate_DIR(child_task);
+
+	// d) cerquem pagines fisiques per mapejar amb les logiques
+	int brk = (int) current()->brk;
+	int NUM_PAG_DATA_HEAP = NUM_PAG_DATA + (brk & 0x0fff)? PAG_HEAP(brk) : PAG_HEAP(brk) - 1; 
+	int frames[NUM_PAG_DATA_HEAP];   //cal afegir les pags del heap
+	int i;
+	for (i=0; i<NUM_PAG_DATA_HEAP; i++) 
+	{
+		frames[i] = alloc_frame();
+		if(frames[i] < 0) 
+		{ 																								 // En cas d'error:
+			for(int j = 0; j < i; j++) free_frame(frames[j]); // alliberem els frames reservats
+			list_add(&child_task->list, &freequeue);				 // tornem a encuar la tasca al freequeue 			
+			return -ENOMEM;
+		}
+
+	}
+	// e) heredem les dades del pare
+	page_table_entry *parent_PT = get_PT(current());
+	page_table_entry *child_PT = get_PT(child_task);
+
+	//  > i) creacio de l'espai d'adresses del process fill: 
+	
+
+	// 	>> A) compartim codi de sistema i usuari
+	for(i=1; i < NUM_PAG_KERNEL; i++)  // suposem que el codi de sistema esta mapejat a les primeres posicions de la taula de pagines
+	{
+		child_PT[1+i].entry = parent_PT[1+i].entry;
+	}
+
+	for(i=0; i < NUM_PAG_CODE; i++) 
+	{
+		set_ss_pag(child_PT, i+PAG_LOG_INIT_CODE, get_frame(parent_PT, i+PAG_LOG_INIT_CODE));
+
+	}
+	
+	// 	>> B) assignem les noves pagines fisiques a les adresses logiques del proces fill 
+	for(i=0; i < NUM_PAG_DATA_HEAP; i++) 
+	{
+		set_ss_pag(child_PT, i+PAG_LOG_INIT_DATA, frames[i]);
+
+	}
+
+	// > ii) ampliem lespai d'adresses del pare per poder accedir a les pagines del fill per copiar data+stack
+	for(i=0; i < NUM_PAG_DATA_HEAP; i++) 
+	{
+		unsigned int page = i+PAG_LOG_INIT_DATA;
+		set_ss_pag(parent_PT, page+NUM_PAG_DATA_HEAP, frames[i]);
+		copy_data( (unsigned long *)(page*PAGE_SIZE), (unsigned long *)((page+NUM_PAG_DATA_HEAP)*PAGE_SIZE) , PAGE_SIZE);
+		del_ss_pag(parent_PT, page+NUM_PAG_DATA_HEAP);
+		
+
+	}
+	set_cr3(get_DIR(current())); // flush de la TLB	
+
+
+	// f) assignem nou PID
+	PID = nextPID++;
+	child_task->PID = PID;
+	
+	// g) modifiquem els camps que han de canviar en el proces fill
+	init_stat(child_task);
+
+
+	// h) preparem la pila del fill per al task_switch
+	union task_union * child_union = (union task_union *) child_task;
+	
+	((unsigned long *)KERNEL_ESP(child_union))[-0x13] = (unsigned long) 0;
 	((unsigned long *)KERNEL_ESP(child_union))[-0x12] = (unsigned long) ret_from_fork; // 5 registres + SAVE_ALL (11 regs) + @handler -> top de stack a -0x11
+	child_task->kernel_esp = 	&((unsigned long *)KERNEL_ESP(child_union))[-0x13]; 
+
+	// i) empilem a la readyqueue el fill
+	if (child_task->nice)list_add_tail(&child_task->list, &readyqueue);
+	else list_add_tail(&child_task->list, &priorityqueue);
+
+	// j) retornem el PID del fill
+
+
+	return PID;
+}P(child_union))[-0x12] = (unsigned long) ret_from_fork; // 5 registres + SAVE_ALL (11 regs) + @handler -> top de stack a -0x11
 	child_task->kernel_esp = 	&((unsigned long *)KERNEL_ESP(child_union))[-0x13]; 
 
 	// i) empilem a la readyqueue el fill
@@ -420,7 +514,75 @@ int sys_fork()
 	return PID;
 }
 ```
+#### 4.2.4 Destrucció de processos
+Es fa per mitjà de la crida `int exit()`. Ha de:
+1. Alliberar recursos assignats.
+	- PCB
+	- Espai de direccions.
+	- Altres coses que hagi pogut demanar com semàfors o memòria dinàmica.
+2. Posar el PCB a la llista de PCBs lliures
+3. Executar al planificador perquè esculli un nou procés.
+
+Nosaltres a zeos fem el `exit` sense paràmetres ni sicronització però en un linux normal, el procés pare es pot sincronitzar amb els fills per mitjà de la crida a `waitpid`. Això fa que el fill ha de mantenir informació sobre la seva mort en el PCB i doncs aquest no s'allibera fins que no es consulta aquesta informació (estat zombie). Si el pare mor sense fer el `waitpid` és el procés init (initial) qui _adopta_ els fills i fa el `waipid`.
+
+```C
+void sys_exit()
+{  
+	struct task_struct *task = current();
+	page_table_entry *task_PT = get_PT(task);
+	int brk = (int) current()->brk;
+	int NUM_PAG_DATA_HEAP = NUM_PAG_DATA + (brk & 0x0fff)? PAG_HEAP(brk) : PAG_HEAP(brk) - 1; 
+	for(int i =0; i < NUM_PAG_DATA_HEAP ; ++i)
+	{
+		free_frame(get_frame(task_PT,i+PAG_LOG_INIT_DATA));
+		del_ss_pag(task_PT, i+PAG_LOG_INIT_DATA);
+	}
+	
+	task->PID=-1;
+	update_process_state_rr(task, &freequeue);
+	sched_next_rr();
+	
+}
+```
+#### 4.2.5 Planificador de processos
+**Procés idle:** Procés del sistema que ocupa la CPU quan no hi ha ningú per fer-ho. És un procés que corre en mode sistema i no forma part de cap cua.
+
+**Procés init:** Procés incial del sistema. Tots els processos són fills d'aquest. 
+
+**Cal un sistema que gestioni els canvis de procés perquè tots s'executin** -> Planificador de processos.
+
+**Planificador de processos:** S'encarrega de decidir quan els processos passen de `ready` a `run` i vicervesa. En un sistema linux normal n'hi ha 3:
+
+ - A llarg termini (batch): S'executa quan comença o acaba un procés.
+ - A mitjà termini: Encarregat del swap. S'executa quan hi ha escasetat de memòria.
+ - A curt termini: Selecciona el següent procés a executar i s'executa cada X temps decidit per la política.
+
+**Ràfega de CPU:** Temps consegutiu que un procés està en CPU.
+**Ràfega d'E/S:** Temps consecutiu que un procés està en una operació d'E/S.
+
+_Aquestes fases es poden representar en un diagrama de Gantt_
+
+**Estat de bloqueig:** Un procés es bloqueja quan ha fet una crida a sistema bloquejant i per tant està esperant un event que li impedeix avançar en l'execució. Quan es bloqueja, el PCB s'envia a una cua de _blocked_ fins que la finalització de la crida el mou a `ready` (apropiació diferida) o a `run` (apropiació directa).
+
+**Algoritme del planificador:**
+```C
+void schedule (void)
+{
+	update_sched_data_rr();   //ACTUALITZA DADES DEL SCHEDULER (QUANTUM QUE QUEDA)
+	if (needs_sched_rr())     //SI LI TOCA CANVIAR
+	{
+		struct task_struct *curr = current();
+		update_process_state_rr(curr, &priorityqueue);   //CANVIA L'ESTAT DEL PROCÉS
+		sched_next_rr();			 	//EXECUTA AL QUE LI TOQUI
+	}
+}
+
+```
+
+##### 4.2.5.1 Polítiques de planificació de processos
+
+ 
+ 
 
 
 
-//recordar parlar d'init i idle quan parli del planificador.

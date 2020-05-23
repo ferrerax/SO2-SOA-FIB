@@ -703,3 +703,91 @@ Hi ha 4 condicions que s'han de complir perque hi hagi un _deadlock_. **Hem d'ev
  - No peempció, és a dir, que no hi hagi prioritat en els recursos i que quan un fluxe pilli un recurs no el deixi anar: Permetre treure recursos a processos.
  - Hi ha d'haver un cicle de dos o més processos on cadascun necessita un recurs bloquejat per un d'altre: Ordenar les peticions i fer que hagin d'aconseguir els recursos en el mateix ordre.
  
+## 5. Gestió de l'entrada i sortida
+**Entrada i sortida:** Transferencia de dades desde o fins a un procés. -> Entre processos o procés - dispositiu.
+
+**L'SO ha de gestionar l'accés a dispositius** Aquest accés és molt variat i depèn del dispositiu.
+ - Cal garantir una capa d'uniformitat i fer que l'accés sigui igual per a tots els dispositius. El codi d'usuari ha de ser independent al típus de dispositiu accedit.
+ - Cal garantir que només l'SO hi tindrà accés: instruccions privilegiades.
+ - Cal optimitzar el rendiment general del sistema.
+ - Cal permetre que apareixin nous dispositius.
+ 
+**Linux usarà 3 típus de dispositius** que actuaran a mode de capes per permetre aquesta separació entre l'usuari i el dispositiu:
+ - **Dispositiu físic:** No són visibles per l'usuari i només són accessibles pel sistema. Són els _Device Drivers_. Codi de baix nivell depenent del dispositiu que implementa la interfície definida pel SO (implementa les crides `open`, `close`, `read`, `write`... se'n parla més endavant).
+ - **Dispositius lògics:** Són un fitxer. Una abstracció lògica creada pel sistema. Poden tenir diferents dispositius associats. Per exemple la tty té teclat i pantalla associats. Són visibles des de l'usuari.
+ - **Dispositus virtuals:** L'usuari tracta sempre amb el dispositiu virtual. Cada procés te els seus. Són els descriptors de la taula de canals.
+ 
+**S'usen diferents estructures de dades per la seva gestió:**
+ - **Taula de canals:** Única per procés, relaciona un numero de la taula de canals amb el dispositiu lògic associat. 
+ - **Taula de fitxers oberts:** Taula que conté aquells fitxers que tenen dispositius virtuals. Ens indica per cada fixter quants dispositius virtuals té associats, amb quins permissos i enllaça amb la taula d'inodes.
+ - **Taula d'inodes:** Indica per cada inode al que s'ha accedit quantes referències té a la taula de canals.
+ 
+ **S'usen unes crides a sistema genèriques que s'implementen en els device drivers. **
+ - **`int open(char *fitxer, int mode, int permissos)`:** Crea un dispositiu virtual pel dispositiu passat per paràmetre (retorna el nombre del canal). Ens crea entrades a la taula de canals i la de fitxers oberts.
+ - **`int close(int canal)`:** Tanca el disp. virtual
+ - **`int read(int canal, char *buff, int nbytes)`:** Espera llegir _nbytes_ del canal amb fd _canal_.
+ - **`int write(int canal, char *buff, int nbytes)`:** Anàlog al read.
+ - **`dup i dup2`:** Modifiquen les entrades de la taula de canals. Permeten duplicar i modificar les referències.
+ - **`ioctl i fcntl`:** Són custom. El dispositu les pot implementar per afegir funcionalitats. Per exemple: SI tinc una estació meteorològica i no ho vull llegir tot, només l'anemòmetre -> podria implementar una d'aquestes.
+ 
+**Dispositu:** Objecte amb el que el procés es vol comunicar. Es controla amb dos típus d'estructures de dades:
+	- **Característiques dinàmiques (dictats a la taula de fitxers oberts):** Són diferents a cada accés, com ara el mode d'acces, la posició etc...
+	- **Característiques estàtiques (presents a l'inode):** Es guarden en una estructura anomenada **descriptor de dispositiu (DD)**. Conté les caràcterístiques de del dispositiu com el nom, el propietari, el mode, etc i els les adreces a les funcions de llegir, escriure, obrir, etc.
+
+Això dona suport a la concurrència perquè dos dispositius vituals poden accedir a les mateixes característiques dinàmiques o, poden haver-hi diferents característiques dinàmiques pel mateux dispositiu i així permetre que dos dispositius virtuals accedeixin de forma concurrent al dispositiu amb característiques dinàmiques diferents (Veure transparències 19 - 29 del tema per il·lustrar l'explicació).
+
+### 5.1 Mecanismes d'accés a un dispositiu.
+
+**Descriptor de Dispositiu:** Conté les característiques estàtiques i els punters a les funcions perquè es pugin usar. Defineix l'interfície d'acces (que és general per tots els dispositius). 
+**Device Driver:** Implementa les funcions específiques del dispositiu. Controla el hw del dispositiu.
+
+A través d'aquest descriptor de dispositiu, el dispositiu lògic pot comunicar-se amb el driver que implementa les funcions que l'usuari demanarà al dispositiu lògic. 
+ 
+La comunicació entre el driver i el dispositiui es pot fer de dues maneres:
+ - **Per enquesta:** Funciona com l'escolta activa. És molt poc edicient
+ - **Per interrupció:** El procés reb una interrupció quna el dispositiu acaba. El procés pot bloquejar-se fins a rebre la interrupció. 
+ 
+I pot ser:
+ - **Síncrona:** No es continua l'execució del procés d'usuari fins que no finalitzi l'operació d'E/S.
+ - **Asíncrona:** Es continua executant codi del procés mentre es resol l'E/S. 
+ 
+_Com s'implementen?_ 
+
+Per mitjà de **gestors**: És un procés el sistema encarregat d'atendre i resoldre peticions d'E/S. Simplifica l'accés a les estructures de dades. **Pot haver-hi un o més gestors per dispositiu.**
+Pseudocodi:
+```C
+for (;;){
+    esperar petició
+    recollir paràmetres
+    fer e/s
+    entregar resultats 
+    notificar final d'E/S
+}
+ ```
+ _Com es sincronitza el procés amb el gestor?_
+  - A través de semàfors (veure a sota a l'explicació completa de l'algoritme).
+  - **IORB:** Input Output Request Block. Estructura de dades que permet el pas de paràmetres. El seu contingut depèn del dispositiu. Cada gestor/dispositiu té una cua d'IORBs amb les peticions pendents. Les rutines E/S omplen els IORBs. Conté:
+  	- Buffer d'usuari on cal deixar les dades (o on es troben).
+	- longitut.
+	- id d'operació
+	- típus d'operació
+  - **io_fin:** Estructura que ens permet el retorn de paràmetres. Conté l'indentificador de l'operació d'ES i el seu resultat. Hi ha una cua d'io_fin per dispositiu.
+  
+ **Overview general i exemples del que s'ha anat dient:**
+ 
+ **Operació d'E/S Síncrona:**
+ 
+ 1. Es fa un read. El trap arriba a la taula de syscalls i es crida a la rutina del read.
+ 2. el read llegeix la taula de canals i veu el disp. lògic associat a aquest canal. Crida al read que hi ha al device descriptor de l'inode d'aquest fitxer.
+ 3. Aquest read apuntat pel DD realitza l'operació pertinent i retorna.
+ 
+ **Operació d'E/S Sícrona amb gestor:**
+ 1. Es fa un read. El trap arriba a la taula de syscalls i es crida a la rutina del read.
+ 2. el read llegeix la taula de canals i veu el disp. lògic associat a aquest canal. Crida al read que hi ha al device descriptor de l'inode d'aquest fitxer.
+ 3. Aquest read de dispositiu crea un IORB i l'encua a la cua d'iorb del gestor.
+ 4. Aquest read de dispositiu fa un `sem_signal(sem)` i immediatament fa un `sem_wait(io_id)` pèr bloquejar-se a esperar el retorn del gestor. Veure que el semàfor fa referència al id de l'operació. Camp del IORB.
+ 5. El gestor que ha despertat (o ja estava despert, qui sap), selecciona un IORB de la cua i efectua l'operació pertinent amb el dispositiu.
+ 6. El gestor efectua un `sem_signal(io_id)` perquè el read del disporitiu es desbloquegi.
+ 7. El read recull el io_fin de la cua d'io_fin del gestor i retorna.
+ 
+ **Operació d'ES asíncrona amb gestor

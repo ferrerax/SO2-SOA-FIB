@@ -765,7 +765,7 @@ for (;;){
 }
  ```
  _Com es sincronitza el procés amb el gestor?_
-  - A través de semàfors (veure a sota a l'explicació completa de l'algoritme).
+  - A través de semàfors (veure explicació i exemples a sota).
   - **IORB:** Input Output Request Block. Estructura de dades que permet el pas de paràmetres. El seu contingut depèn del dispositiu. Cada gestor/dispositiu té una cua d'IORBs amb les peticions pendents. Les rutines E/S omplen els IORBs. Conté:
   	- Buffer d'usuari on cal deixar les dades (o on es troben).
 	- longitut.
@@ -773,7 +773,7 @@ for (;;){
 	- típus d'operació
   - **io_fin:** Estructura que ens permet el retorn de paràmetres. Conté l'indentificador de l'operació d'ES i el seu resultat. Hi ha una cua d'io_fin per dispositiu.
   
- **Overview general i exemples del que s'ha anat dient:**
+ **Overview general i exemples del que s'ha anat dient:** (veure transpas 40-46 del tema per la il·lustració)
  
  **Operació d'E/S Síncrona:**
  
@@ -785,9 +785,85 @@ for (;;){
  1. Es fa un read. El trap arriba a la taula de syscalls i es crida a la rutina del read.
  2. el read llegeix la taula de canals i veu el disp. lògic associat a aquest canal. Crida al read que hi ha al device descriptor de l'inode d'aquest fitxer.
  3. Aquest read de dispositiu crea un IORB i l'encua a la cua d'iorb del gestor.
- 4. Aquest read de dispositiu fa un `sem_signal(sem)` i immediatament fa un `sem_wait(io_id)` pèr bloquejar-se a esperar el retorn del gestor. Veure que el semàfor fa referència al id de l'operació. Camp del IORB.
- 5. El gestor que ha despertat (o ja estava despert, qui sap), selecciona un IORB de la cua i efectua l'operació pertinent amb el dispositiu.
+ 4. Aquest read de dispositiu fa un `sem_signal(sem)` per despertar al gestor si estava bloquejat i immediatament fa un `sem_wait(io_id)` pèr bloquejar-se a esperar el retorn del gestor. Veure que el semàfor fa referència al id de l'operació. Camp del IORB.
+ 5. El gestor que ha despertat (o ja estava despert, qui sap), selecciona un IORB de la cua i efectua l'operació pertinent amb el dispositiu. Crea el `io_fin` i l'encua a la cua d'io_fins
  6. El gestor efectua un `sem_signal(io_id)` perquè el read del disporitiu es desbloquegi.
  7. El read recull el io_fin de la cua d'io_fin del gestor i retorna.
  
- **Operació d'ES asíncrona amb gestor
+ **Operació d'ES asíncrona amb gestor**
+ 1. Es fa un read. El trap arriba a la taula de syscalls i es crida a la rutina del read.
+ 2. el read llegeix la taula de canals i veu el disp. lògic associat a aquest canal. Crida al read que hi ha al device descriptor de l'inode d'aquest fitxer.
+ 3. Aquest read de dispositiu crea un IORB i l'encua a la cua d'iorb del gestor.
+ 4. Aquest read de dispositiu fa un `sem_signal(sem)` per despertar al gestor si estava bloquejat i retorna el io_id. Hi haurà un procés fora del read de dispositiu (és a dir, un codi que no depèn del dispositiu), que farà el `sem_wait(id_io)` per recollir el resultat.
+ 5. El gestor que ha despertat (o ja estava despert, qui sap), selecciona un IORB de la cua i efectua l'operació pertinent amb el dispositiu. Crea el `io_fin` i l'encua a la cua d'io_fins
+ 6. El gestor efectua un `sem_signal(io_id)`.
+ 7. El codi que hagi fet el `sem_wait(io_id)` és desbloqueja i recull el resultat de la cua d'io_fins i retorna el resultat.
+ 
+**Possibles optimitzacions:**
+ - Tenir buffers on volcar les dades a escriure/llegir perquè puguin anar fent mentre els processos treballen.
+ - Tenir dispositius intermitjos que gestionin els accessos com una cua d'impressió. Només s'imprimeix d'un en un però jo puc enviar mil coses a l'impressora i no se'm bloquejen els processos.
+ - Usar millors algoritmés d'accés al dispositiu
+ - Usar RAIDs i altres millors organitzacions del HW.
+ 
+ ### 5.2 Comunicació entre processos
+ Hi ha diferents maneres de comunicar processos:
+  - Memòria compartida: Entre fluxes.
+  - Pas de missatges: Sockets i pipes.
+  - Signals.
+ 
+ #### 5.2.1 Sockets
+ **Socket:** Dispositiu lògic de comunicació **bidireccional** que permet comunicar processos en la mateixa màquina o en màquines remotes. És caracteritzat per:
+ - Tipus de connexió: Orientat o no orientat a connexió
+ - Espai de noms: Els processos han de tenir un nom. Es designa amb una IP i un PORT.
+ - Protocol de comunicació: TCP, UDP, ICMP
+ 
+ **Sockets orientats a connexió** (mantenen una "sessió"):
+ 
+ Servidor:
+ 1. `socket()` Crea i associa el socket a un canal.
+ 2. `bind()` Associa ip i port al socket i el publica.
+ 3. `listen()` Configura el nombre de conexions que es poden rebre.
+ 4. `accept()`: Espera solicitud. Al rebre-la, duplica el canal i torna a obrir el port per rebre més peticions
+ 5. S'efecuten reads i writes a través del canal de comunicació.
+ 
+ Client:
+ 1. `socket()` Crea i associa el socket a un canal.
+ 2. `connect()` Solicita connexió a un servidor.
+ 3. S'efecuten reads i writes a través del canal de comunicació.
+ 
+ **Sockets no orientats a connexió**
+Servidor i client:
+ 1. `socket()` Crea i associa el socket a un canal.
+ 2. `bind()` Associa ip i port al socket i el publica.
+ 3. S'efectuen crides a `sendto()` especificant destí i `recvfrom()` per rebre del destí.
+ 
+ **sockaddr:** Estructura de dades que conté tota la informació del socket.
+
+**Endianisme** Problema de la transmissió. Cal per conveni sempre transmetre en Big Endian. Només passa amb nombres, no amb els caràcters!! Tindrem crides a sistema que ens permetran fer aquest canvi d'informació (`htons`, `htonl`...)
+
+**Linux té un sistema de capes per gestionar els sockets:**
+
+- Capa socket: Lídia amb l'interficie d'usuari.
+- Capa protocol: Implementa els nivells de sessió, transport, xarxa i enllaç.
+- Capa interfície. A nivell físic (codificació elèctrica del missatge).
+
+La comunicacnió entre elles es fa per mitja de l'estructura `sk_buff` que codifica el missatge i te els camps necessaris poder transmetre la info per totes les capes.
+
+**Enviar:** Al fer-se un `write` es crea un `sk_buff` a la capa de socket. S'envia un trap a la capa de protocol que codificarà el missatge segons el que dictin les capes de sessió, transport, xarxa i enllaç i la info del socket i l'enviarà a la tarja de xarxa que el codificara en forma d'impulsos elèctrics per que pugui ser enviar.
+
+**Rebre:** Al rebre els impulsos elèctrics, la capa d'interfície crea un `sk_buff` i emet una interrupció hw per la capa de protocol. Aquesta recull l'`sk_buff`, el processa i el transmet a través d'un trap a la capa de socket que s'encarrega de transmetre el missatge a l'usuari.
+
+Per cada connexió es necessita un `sk_buff`. Per tant, el que passa en un atac DoS de _syn floading_ era que s'enviaven molts _syn_ i mai cap _ack_ de manera que la memòria es petava a base de `sk_buff`. Ara això ja no passa perquè el `listen` elimina l'`sk_buff` al rebre'l. 
+
+#### 5.2.2 Pipes
+Intercanvi de dades entre processos a la mateixa màquina. Són una regió de memòria amb un inode associat. Aquest inode conté els buffers de memòria i les operacions sobre els buffers, les operacions d'accés a la pipe i el semàfor que implementa els bloquejos.
+De dos típus: 
+ - Sense nom: No tenen nom que les representi i per tant són només una regió de memòria.
+ - Amb nom: Necessitaran un dispositiu perquè hi puguem fer referència a aquesta regió de memòria
+ 
+Són unidireccionals i a mesura que es llegeix es borra el contingut escrit. Comportament FIFO.
+
+**LA SEGUENT PART D'AQUEST TEMA QUE ÉS SISTEMA DE FITXERS NO HA ENTRAT A EXÀMEN AQUEST ANY I NO S'HA DONAT A CLASSE, NO ESTÀ PRESENT ALS APUNTS**
+
+## 6. Gestió de la memòria.
+ 

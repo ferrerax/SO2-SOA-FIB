@@ -886,3 +886,9 @@ D'aquesta manera, s'organitzen les regions de memòria en forma d'arbre (il·lus
 ### 6.2. Memòria dinàmica per l'usuari.
 Tindrem una zona especial de memòria dedicada: el HEAP.
 
+**`int *sbrk(int incr)`:** Crida a sistema dedicada. Si l'increment és positiu dona memòria, si és negatiu la treu. És poc pràctica perque no ens permet alliberar zones concretes de memòria.
+
+Com que el sbrk és molt complicat d'usar, hi ha moltes llibreries que han implementat els seus _allocatadors_ per fer aquest procés més senzill. Nosaltres estudiarem el `malloc()` i en concret el _Doug Lea Malloc_
+
+### 6.2.1 Doug Lea Malloc
+

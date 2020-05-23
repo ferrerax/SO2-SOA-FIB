@@ -658,6 +658,32 @@ Cal evitar condicions de carrera entre recursos compartits entre els processos c
  - No es pot fer cap hipòtesi sobre el nombre de processadors ni la seva velocitat d'execució.
  
 **Exclusió mutua:** Només permetre un fluxe en una regió. Es garanteix un accés seqüencial. Un procés mantindrà la regió encara que hi hagi un canvi de context.
- - Caldrà que el programador identifiqui i marqui les regions crítiques degudament -> El sistema ens ofereix crides a sistema per marcar aquestes regions i **l'arquitectura ens facilita operacions atòmiques** és a dir, que només executarà un thread alhora: un exemple és el `test_and_set` de PAR.
+ - Caldrà que el programador identifiqui i marqui les regions crítiques degudament -> El sistema ens ofereix crides a sistema per marcar aquestes regions i **l'arquitectura ens facilita operacions atòmiques** és a dir, que només executarà un thread alhora: un exemple és el `test_and_set` de PAR. Aquestes operacions venen definides pel processador.
  
+_Com poden implementar-se aquestes crides a sistema?_
 
+**Espera activa o busy waiting:** Per mitja d'una instrucció atòmica de l'arquitectura com un `test_and_set`. Anem consultant tota l'estona el valor de la variable.
+ - Grans inconvenients: Ocupem la CPU amb càlcul tremendo inútil amb tot el que això comporta i saturem el bus de memòria anant sempre a buscar la mateixa instrucció(recordar PAR).
+ - Grans solucions: Bloqueix del procés
+ 
+ **Espera de bloqueig:** Permet reduir el gast de la CPU i els accessos a memòria. Bloquejarem els processos que no puguin entrar a la regió crítica per mitjà de semàfors.
+ 
+ **Semàfor:** Estructura de dades que ens permetrà controlar els accessos a una regió crítica per mitjà de crides a sistema implementades amb les operacions atòmiques de l'arquitectura (consultes i modificacions del contador del semàfor). **Cada semàfor té associat un contador i una cua de processos bloquejats.** Aquest contador ens indica el nombre de processos que poden accedir simultaniament al recurs. n=1 permet l'exclusió mutua.
+ Les seguents crides a sistema ens permeten interactuar amb ells:
+ - **`sem_init(sem,n)`:** Crea un semàfor. _sem_ és una estructura de dades de la que no hem parlat.
+ ```C
+ sem -> count = n;
+ ini_queue(sem->queue);
+ ```
+ - **`sem_wait(sem)`:** Demanar acces a una regió critica protegida per el semàfor `sem` (lock). En cas de que no s'hi pugui accedir, es **bloqueja el procés**. És a dir, l'inclou a la cua de `blocked` del semàfor.
+  ```C
+ sem -> count--;
+ if(sem->count<0)
+ 	bloquejar(sem->queue);
+  ```
+ - **`sem_signal(sem)`:** Sortida de la zona d'exclusió (unlock). Si hi ha processos esperant (`sem->count <= 0`) cal **despertar un procés**. És a dir, agafar un procés de la cua de `blocked` i cardar-lo a `ready` o a `run`, depenent de la política del semàfor.
+  ```C
+  sem -> count++;
+  if(sem->count <= 0)   //vol dir que hi ha processos esperant
+ 	despertar(sem->queue);
+  ```

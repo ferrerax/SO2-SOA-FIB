@@ -890,5 +890,5 @@ Tindrem una zona especial de memòria dedicada: el HEAP.
 
 Com que el sbrk és molt complicat d'usar, hi ha moltes llibreries que han implementat els seus _allocatadors_ per fer aquest procés més senzill. Nosaltres estudiarem el `malloc()` i en concret el _Doug Lea Malloc_
 
-### 6.2.1 Doug Lea Malloc
+#### 6.2.1 Doug Lea Malloc
 

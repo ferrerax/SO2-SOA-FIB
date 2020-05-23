@@ -651,5 +651,13 @@ Cal evitar condicions de carrera entre recursos compartits entre els processos c
 
 **Solució:** Exclusió mutua en les regions crítiques on es poden haver condicions de carrera.
 
-
+**S'ha de garantir unes condicions per un correcte accés a una regió crítica:**
+ - Només hi pot haver un fluxe a una regió crítica.
+ - Un fluxe no pot esperar indefinidament per entrar a una regió crítica.
+ - Un fluxe que s'està executant fora d'una regió crítica no pot evitar que d'altres hi entrin.
+ - No es pot fer cap hipòtesi sobre el nombre de processadors ni la seva velocitat d'execució.
+ 
+**Exclusió mutua:** Només permetre un fluxe en una regió. Es garanteix un accés seqüencial. Un procés mantindrà la regió encara que hi hagi un canvi de context.
+ - Caldrà que el programador identifiqui i marqui les regions crítiques degudament -> El sistema ens ofereix crides a sistema per marcar aquestes regions i **l'arquitectura ens facilita operacions atòmiques** és a dir, que només executarà un thread alhora: un exemple és el `test_and_set` de PAR.
+ 
 

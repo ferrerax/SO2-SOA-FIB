@@ -866,4 +866,23 @@ Són unidireccionals i a mesura que es llegeix es borra el contingut escrit. Com
 **LA SEGUENT PART D'AQUEST TEMA QUE ÉS SISTEMA DE FITXERS NO HA ENTRAT A EXÀMEN AQUEST ANY I NO S'HA DONAT A CLASSE, NO ESTÀ PRESENT ALS APUNTS**
 
 ## 6. Gestió de la memòria.
+ D'aquest tema només s'ha tractat memòria dinàmica en aquest curs.
  
+ **Memòria dinàmica:** Mecanisme que permet demanar i alliberar memòria a demanda.
+ 
+ ### 6.1 Memòria dinàmica del sistema
+ 
+**Buddy System:** Gestió de la memòria a base de reservar blocs en potències de dos. A base d'aquestes potències, ens permet gestionar un bloc a través d'un arbre binari. Si divideixo un bloc obtinc dos fills en l'arbre. Les fulles son els blocs dem memòria actuals. Permet dues operacions:
+ - **Splitting:** Separar un bloc en dos (generar dos fulles).
+ - **Coalescing:** Juntar dos blocs consecutius. Han de ser germans en l'arbre (juntar dos fulles i per tant eliminar-les en pos d'un bloc més gran).
+D'aquesta manera, s'organitzen les regions de memòria en forma d'arbre (il·lustració a les transpas 14-25).
+
+**Té grans inconvenients:**
+ - Fragmentació externa: Perquè queden blocs lliures petits que no es poden aprofitar.
+ - Fragmentació interna: Perquè només puc reservar en potències de 2.
+ 
+ **Slab allocator:** Intenta resoldre els problemes del buddy system. Consisteix fer una reserva anticipada d'objectes del sistema (anomenada _slab_). Aquests _slabs_ es guarden en cachés. Cada caché conté objectes del mateix tamany i la informació de si està en us o no. D'aquesta manera el sistema no demana regions individuals de PCBs o regions individuals de smàfors sinó que els demana d'slab en slab. Així sempre demana molta més informació, els blocs són més grans i reduïm el risc de segmentació.
+ 
+### 6.2. Memòria dinàmica per l'usuari.
+Tindrem una zona especial de memòria dedicada: el HEAP.
+

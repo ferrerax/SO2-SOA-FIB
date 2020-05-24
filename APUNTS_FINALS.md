@@ -736,13 +736,13 @@ Hi ha 4 condicions que s'han de complir perque hi hagi un _deadlock_. **Hem d'ev
 	
 - **Característiques dinàmiques (dictats a la taula de fitxers oberts):** Són diferents a cada accés, com ara el mode d'acces, la posició etc...
 	
-- **Característiques estàtiques (presents a l'inode):** Es guarden en una estructura anomenada **descriptor de dispositiu (DD)**. Conté les caràcterístiques de del dispositiu com el nom, el propietari, el mode, etc i els les adreces a les funcions de llegir, escriure, obrir, etc.
+- **Característiques estàtiques (presents a l'inode):** Es guarden en una estructura anomenada **descriptor de dispositiu (DD)**. Conté les caràcterístiques de del dispositiu com el nom, el propietari, el mode d'accés, etc i els les adreces a les funcions de llegir, escriure, obrir, etc.
 
 Això dona suport a la concurrència perquè dos dispositius vituals poden accedir a les mateixes característiques dinàmiques o, poden haver-hi diferents característiques dinàmiques pel mateux dispositiu i així permetre que dos dispositius virtuals accedeixin de forma concurrent al dispositiu amb característiques dinàmiques diferents (Veure transparències 19 - 29 del tema per il·lustrar l'explicació).
 
 ### 5.1 Mecanismes d'accés a un dispositiu.
 
-**Descriptor de Dispositiu:** Conté les característiques estàtiques i els punters a les funcions perquè es pugin usar. Defineix l'interfície d'acces (que és general per tots els dispositius). 
+**Descriptor de Dispositiu:** Conté les característiques estàtiques (inherents del dispositiu, donades pel fabricant) i els punters a les funcions perquè es pugin usar. Defineix l'interfície d'acces (que és general per tots els dispositius). 
 **Device Driver:** Implementa les funcions específiques del dispositiu. Controla el hw del dispositiu.
 
 A través d'aquest descriptor de dispositiu, el dispositiu lògic pot comunicar-se amb el driver que implementa les funcions que l'usuari demanarà al dispositiu lògic. 

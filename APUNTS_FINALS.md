@@ -901,4 +901,4 @@ Cada cop que s'allibera un chunk s'afegeix a una llista doblement encadenada que
 
 Aquesta gestió permet fer _splitting_ al reservar i _coalescing_ de blocs consecutius a l'alliberar.
 
-
+**LA SEGUENT PART D'AQUEST TEMA NO HA ENTRAT A EXÀMEN AQUEST ANY I NO S'HA DONAT A CLASSE, NO ESTÀ PRESENT ALS APUNTS**

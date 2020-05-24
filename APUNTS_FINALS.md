@@ -596,7 +596,7 @@ void schedule (void)
 ##### 4.2.5.2 Algoritmes de planificació
 
 **FCFS:** First come, first served. No apropiatiu. Algoritme de _tonto el último_. 
-**Prioritats:** cada procés té assignada una prioritat. Entre processos de igual prioritat és fifo. Pot provocar inanció. 
+**Prioritats:** cada procés té assignada una prioritat. Entre processos de igual prioritat és fifo. Pot provocar inanició. 
 **Round Robin:** A _pito-pito_. Es canvia cada cop que a un procés se li acaba el quantum. Es poden aplicar priotitats. Cal pensar que podem tenir moltes cues amb algoritmes diferents i polítiques diferents.
 
 Els algoritmes ens han de garantir:

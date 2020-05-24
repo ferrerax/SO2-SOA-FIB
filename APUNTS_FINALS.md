@@ -692,7 +692,9 @@ _Com poden implementar-se aquestes crides a sistema?_
 _Com podem usar semàfors?_
 
 **`sem_init(sem,1)`:** Anomenat _Mutex_. Només entra un procés.
+
 **`sem_init(sem,0)`:** Sincronització dels processos. Per controlar els threads. Els atura a tots.
+
 **`sem_init(sem,N)`:** Restricció de recursos. Com a la cua del super. Hi ha només 3 caixes i molta gent.
 
 **Deadlocks:** Abraçades mortals. Poden donar-se si hi ha processos bloquejats esperant un event d'un altre procés que també està bloquejat esperant un event d'un altre i així en cicle. A necessita B que necessita C que necessita A i la hem liat. Tot bloquejat. Com ho solucionem?

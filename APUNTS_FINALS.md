@@ -891,4 +891,14 @@ Tindrem una zona especial de memòria dedicada: el HEAP.
 Com que el sbrk és molt complicat d'usar, hi ha moltes llibreries que han implementat els seus _allocatadors_ per fer aquest procés més senzill. Nosaltres estudiarem el `malloc()` i en concret el _Doug Lea Malloc_
 
 #### 6.2.1 Doug Lea Malloc
+Basats en chunks alineats a 8 bytes amb una capçalera i una zona de memòria usable per l'usuari.
+
+Cada cop que s'allibera un chunk s'afegeix a una llista doblement encadenada que conté els chunks organitzats per taamanys. Aquesta llista, a cada posició conté una llista de chunks d'un tamany concret doblement encadenats. Hi ha una una llistya per cada mida diferent dins als 512 bytes. A partir d'aquí ja s'ordenen de manera diferent.
+
+**Capçaleres:** Anomenats **bounary tags**. Es troben al principi i al final. Indiquen el tamany de la regió i si aquesta està plena o buida.
+
+**Camp de dades:** Camp del tamany demanat per l'usuari. EL punter retornat per malloc apunta a l'inici d'aquesta regió. En el cas de que estigui lliure, aquest camp contindrà un punter al chunk anterior i un al posterior de la llista de chuncks lliures. 
+
+Aquesta gestió permet fer _splitting_ al reservar i _coalescing_ de blocs consecutius a l'alliberar_.
+
 

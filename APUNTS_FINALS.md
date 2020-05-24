@@ -899,6 +899,6 @@ Cada cop que s'allibera un chunk s'afegeix a una llista doblement encadenada que
 
 **Camp de dades:** Camp del tamany demanat per l'usuari. EL punter retornat per malloc apunta a l'inici d'aquesta regió. En el cas de que estigui lliure, aquest camp contindrà un punter al chunk anterior i un al posterior de la llista de chuncks lliures. 
 
-Aquesta gestió permet fer _splitting_ al reservar i _coalescing_ de blocs consecutius a l'alliberar_.
+Aquesta gestió permet fer _splitting_ al reservar i _coalescing_ de blocs consecutius a l'alliberar.
 
 
